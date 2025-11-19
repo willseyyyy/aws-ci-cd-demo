@@ -17,11 +17,15 @@ pipeline {
         }
 
         stage('Install & Test') {
-            steps {
-                sh 'npm install'
-                sh 'npm test'
+    steps {
+        sh '''
+          npm install
+          chmod +x node_modules/.bin/jest || true
+          npx jest
+        '''
             }
         }
+
 
         stage('Build Docker Image') {
             steps {
