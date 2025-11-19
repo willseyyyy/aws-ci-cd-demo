@@ -18,17 +18,17 @@ pipeline {
 
         stage('Install & Test') {
             steps {
-                bat 'npm install'
-                bat 'npm test'
+                sh 'npm install'
+                sh 'npm test'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                bat """
-                docker build -t %ECR_REPO_NAME%:%BUILD_NUMBER% .
-                docker tag %ECR_REPO_NAME%:%BUILD_NUMBER% %ECR_REPO_URI%:%BUILD_NUMBER%
-                docker tag %ECR_REPO_NAME%:%BUILD_NUMBER% %ECR_REPO_URI%:latest
+                sh """
+                docker build -t ${ECR_REPO_NAME}:${BUILD_NUMBER} .
+                docker tag ${ECR_REPO_NAME}:${BUILD_NUMBER} ${ECR_REPO_URI}:${BUILD_NUMBER}
+                docker tag ${ECR_REPO_NAME}:${BUILD_NUMBER} ${ECR_REPO_URI}:latest
                 """
             }
         }
@@ -40,12 +40,15 @@ pipeline {
                     usernameVariable: 'AWS_ACCESS_KEY_ID',
                     passwordVariable: 'AWS_SECRET_ACCESS_KEY'
                 )]) {
-                    bat """
-                    aws ecr get-login-password --region %AWS_REGION% ^
-                    | docker login --username AWS --password-stdin %AWS_ACCOUNT_ID%.dkr.ecr.%AWS_REGION%.amazonaws.com
+                    sh """
+                    aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+                    aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+                    aws configure set default.region ${AWS_REGION}
 
-                    docker push %ECR_REPO_URI%:%BUILD_NUMBER%
-                    docker push %ECR_REPO_URI%:latest
+                    aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+
+                    docker push ${ECR_REPO_URI}:${BUILD_NUMBER}
+                    docker push ${ECR_REPO_URI}:latest
                     """
                 }
             }
@@ -58,12 +61,16 @@ pipeline {
                     usernameVariable: 'AWS_ACCESS_KEY_ID',
                     passwordVariable: 'AWS_SECRET_ACCESS_KEY'
                 )]) {
-                    bat """
-                    aws ecs update-service ^
-                      --cluster aws-ci-cd-cluster ^
-                      --service aws-ci-cd-service ^
-                      --force-new-deployment ^
-                      --region %AWS_REGION%
+                    sh """
+                    aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+                    aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+                    aws configure set default.region ${AWS_REGION}
+
+                    aws ecs update-service \
+                      --cluster aws-ci-cd-cluster \
+                      --service aws-ci-cd-service \
+                      --force-new-deployment \
+                      --region ${AWS_REGION}
                     """
                 }
             }
@@ -73,7 +80,6 @@ pipeline {
     post {
         success {
             echo "Build & deploy succeeded!"
-            // Later: configure email after SMTP is set up and use emailext here
         }
         failure {
             echo "Build or deploy failed. Check logs."
